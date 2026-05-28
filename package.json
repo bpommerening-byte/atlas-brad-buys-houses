@@ -96,7 +96,12 @@
     },
     "overrides": {
       "tailwindcss>nanoid": "3.3.7"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "@tailwindcss/oxide",
+      "esbuild"
+    ]
   },
   "engines": {
     "node": ">=18.0.0"
