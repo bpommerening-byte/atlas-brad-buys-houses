@@ -607,34 +607,18 @@ export async function scrapeVacantAbandoned(fromDate: string, toDate: string): P
 }
 
 export async function scrapeAll(fromDate: string, toDate: string): Promise<Lead[]> {
+  // Only include lead types that reliably return a property address
+  // SKIPPED (no address): PreForeclosure, Probate, Obituaries, FSBO, Bankruptcy, VacantAbandoned
   const results = await Promise.allSettled([
-    scrapePreForeclosure("Dane", fromDate, toDate),
-    scrapePreForeclosure("Rock", fromDate, toDate),
-    scrapePreForeclosure("Door", fromDate, toDate),
-    // Sheriff Sales (Foreclosure) — all 3 counties
     scrapeSheriffSales("Dane", fromDate, toDate),
     scrapeSheriffSales("Rock", fromDate, toDate),
     scrapeSheriffSales("Door", fromDate, toDate),
-    // Tax Delinquent — all 3 counties
     scrapeTaxDelinquent("Dane", fromDate, toDate),
     scrapeTaxDelinquent("Rock", fromDate, toDate),
     scrapeTaxDelinquent("Door", fromDate, toDate),
-    // Probate (WCCA) — all 3 counties
-    scrapeProbate("Dane", fromDate, toDate),
-    scrapeProbate("Rock", fromDate, toDate),
-    scrapeProbate("Door", fromDate, toDate),
-    // Obituaries
-    scrapeObituaries(fromDate, toDate),
-    // FSBO
-    scrapeFSBO(fromDate, toDate),
-    // Bankruptcy
-    scrapeBankruptcy(fromDate, toDate),
     scrapeCodeViolations(fromDate, toDate),
     scrapeDivorce(fromDate, toDate),
     scrapeOutOfStateOwners(fromDate, toDate),
-    scrapeVacantAbandoned(fromDate, toDate),
-  
-  
   ]);
 
   return results.flatMap(r => r.status === "fulfilled" ? r.value : []);
