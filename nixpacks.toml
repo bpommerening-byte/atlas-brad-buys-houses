@@ -1,12 +1,16 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
-
+nixPkgs = ["nodejs_22", "python3", "gcc", "gnumake"]
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
-
+cmds = [
+  "npm install -g pnpm@9 --prefix /usr/local",
+  "export PATH=/usr/local/bin:$PATH && pnpm install --no-frozen-lockfile",
+  "export PATH=/usr/local/bin:$PATH && pnpm rebuild better-sqlite3"
+]
 [phases.build]
-cmds = ["npm run build"]
-
+cmds = [
+  "export PATH=/usr/local/bin:$PATH && rm -rf /app/dist && pnpm run build"
+]
 [start]
 cmd = "node dist/index.js"
+# cache-bust: force-pnpm-build
 
