@@ -16,7 +16,7 @@ export const CLIENT_CONFIG = {
   companyName: "Brad Buys Houses",
   userEmail: "bpommerening@gmail.com",
   userPassword: "Brad1074$",
-  accentColor: "#2563EB",
+  accentColor: "#1D4ED8",
   counties: [
   {
     "name": "Dane",
@@ -24,11 +24,10 @@ export const CLIENT_CONFIG = {
     "leadTypes": [
       "Sheriff Sale",
       "Bankruptcy",
-      "Probate",
       "Tax Delinquent",
-      "Obituary",
       "FSBO",
-      "Divorce"
+      "Probate",
+      "Obituary"
     ]
   },
   {
@@ -37,8 +36,7 @@ export const CLIENT_CONFIG = {
     "leadTypes": [
       "Sheriff Sale",
       "Bankruptcy",
-      "Probate",
-      "Divorce"
+      "Probate"
     ]
   },
   {
