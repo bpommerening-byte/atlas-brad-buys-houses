@@ -382,9 +382,12 @@ export async function enrichLead(opts: {
   // Fall back to address-based lookup
   if (propertyAddress && propertyAddress.trim().length > 5) {
     if (county === "Dane") {
-      const result = await daneLookupByAddress(propertyAddress);
+      // Dane County address search requires municipality selection (returns 500 without it)
+      // Use WI Statewide Parcels as the reliable address lookup for Dane
+      const result = await wiStatewideByAddress(propertyAddress, "Dane");
       if (result) return result;
-      return wiStatewideByAddress(propertyAddress, "Dane");
+      // Try Dane's own address search as secondary attempt
+      return daneLookupByAddress(propertyAddress);
     } else if (county === "Rock") {
       return wiStatewideByAddress(propertyAddress, "Rock");
     } else if (county === "Door") {
