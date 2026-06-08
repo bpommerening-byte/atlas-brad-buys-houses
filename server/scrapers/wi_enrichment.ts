@@ -45,21 +45,32 @@ async function daneLookupByName(
       formName: "owner",
     });
     const url = `https://accessdane.danecounty.gov/Parcel/Search?${params}`;
+    // The owner search redirects directly to the parcel detail page when there's a single match,
+    // or to a results list when there are multiple. Follow redirects to get the final page.
     const res = await fetch(url, {
-      headers: { "User-Agent": UA },
+      headers: {
+        "User-Agent": UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Referer": "https://accessdane.danecounty.gov/Parcel",
+      },
       redirect: "follow",
     });
     const html = await res.text();
-    const $ = cheerio.load(html);
+    const finalUrl = res.url;
 
-    // Find first parcel link in results table
-    const firstLink = $("table a[href*='/Parcel/']").first().attr("href");
+    // If redirected directly to a parcel detail page (URL is a parcel number)
+    if (/\/\d{12}$/.test(finalUrl) || /\/Parcel\/\d/.test(finalUrl)) {
+      return parseDaneParcelDetail(html, "Dane");
+    }
+
+    // Otherwise parse the results list and follow first parcel link
+    const $ = cheerio.load(html);
+    const firstLink = $("a[href*='/Parcel/']").filter((_, el) => /\/\d{6,}/.test($(el).attr("href") || "")).first().attr("href");
     if (!firstLink) return null;
 
-    // Fetch parcel detail
-    const detailUrl = `https://accessdane.danecounty.gov${firstLink}`;
+    const detailUrl = firstLink.startsWith("http") ? firstLink : `https://accessdane.danecounty.gov${firstLink}`;
     const detailRes = await fetch(detailUrl, {
-      headers: { "User-Agent": UA },
+      headers: { "User-Agent": UA, "Referer": url },
     });
     const detailHtml = await detailRes.text();
     return parseDaneParcelDetail(detailHtml, "Dane");
@@ -70,10 +81,12 @@ async function daneLookupByName(
 
 async function daneLookupByAddress(address: string): Promise<EnrichedParcel | null> {
   try {
-    // Parse house number and street name from address
-    const parts = address.trim().split(/\s+/);
+    // Strip city/state/zip — only use street address portion
+    const streetOnly = address.split(",")[0].trim();
+    const parts = streetOnly.split(/\s+/);
     const houseNum = parts[0] || "";
-    const streetName = parts.slice(1).join(" ").replace(/\s+(RD|ST|AVE|DR|LN|CT|WAY|BLVD|PL|CIR|TRL|HWY|HIGHWAY)\.?$/i, "");
+    // Remove trailing street type for better matching
+    const streetName = parts.slice(1).join(" ").replace(/\s+(RD|ST|AVE|DR|LN|CT|WAY|BLVD|PL|CIR|TRL|HWY|HIGHWAY|PKWY)\.?$/i, "");
 
     const params = new URLSearchParams({
       "Address.HouseNumber": houseNum,
@@ -83,18 +96,28 @@ async function daneLookupByAddress(address: string): Promise<EnrichedParcel | nu
     });
     const url = `https://accessdane.danecounty.gov/Parcel/Search?${params}`;
     const res = await fetch(url, {
-      headers: { "User-Agent": UA },
+      headers: {
+        "User-Agent": UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Referer": "https://accessdane.danecounty.gov/Parcel",
+      },
       redirect: "follow",
     });
     const html = await res.text();
-    const $ = cheerio.load(html);
+    const finalUrl = res.url;
 
-    const firstLink = $("table a[href*='/Parcel/']").first().attr("href");
+    // Direct redirect to parcel detail
+    if (/\/\d{12}$/.test(finalUrl) || /\/Parcel\/\d/.test(finalUrl)) {
+      return parseDaneParcelDetail(html, "Dane");
+    }
+
+    const $ = cheerio.load(html);
+    const firstLink = $("a[href*='/Parcel/']").filter((_, el) => /\/\d{6,}/.test($(el).attr("href") || "")).first().attr("href");
     if (!firstLink) return null;
 
-    const detailUrl = `https://accessdane.danecounty.gov${firstLink}`;
+    const detailUrl = firstLink.startsWith("http") ? firstLink : `https://accessdane.danecounty.gov${firstLink}`;
     const detailRes = await fetch(detailUrl, {
-      headers: { "User-Agent": UA },
+      headers: { "User-Agent": UA, "Referer": url },
     });
     const detailHtml = await detailRes.text();
     return parseDaneParcelDetail(detailHtml, "Dane");
@@ -106,30 +129,38 @@ async function daneLookupByAddress(address: string): Promise<EnrichedParcel | nu
 function parseDaneParcelDetail(html: string, county: string): EnrichedParcel | null {
   try {
     const $ = cheerio.load(html);
-    const text = $.text();
+    // Get plain text with newlines preserved
+    const text = $.root().text();
+    const lines = text.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
 
-    // Extract owner name
-    const ownerMatch = text.match(/Current Owner\s*\n?\s*([A-Z][A-Z\s,\.]+?)(?:\n|Current Co-Owner|Primary Address)/);
-    const ownerName = ownerMatch ? ownerMatch[1].trim() : "";
-
-    // Extract primary address (property address)
-    const primaryMatch = text.match(/Primary Address\s*\n?\s*([0-9][^\n]+)/);
-    const propertyAddress = primaryMatch ? primaryMatch[1].trim() : "";
-
-    // Extract billing/mailing address
-    const billingMatch = text.match(/Billing Address\s*\n?\s*([0-9][^\n]+)\s*\n\s*([^\n]+WI[^\n]+)/);
+    let ownerName = "";
+    let propertyAddress = "";
     let mailingAddress = "";
     let city = "";
     let state = "WI";
     let zip = "";
 
-    if (billingMatch) {
-      mailingAddress = billingMatch[1].trim();
-      const cityStateZip = billingMatch[2].trim();
-      const czMatch = cityStateZip.match(/^(.+?)\s+WI\s+(\d{5})/);
-      if (czMatch) {
-        city = czMatch[1].trim();
-        zip = czMatch[2];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i] === "Owner Name" && i + 1 < lines.length) {
+        ownerName = lines[i + 1];
+      } else if ((lines[i] === "Current Owner" || lines[i] === "Owner") && i + 1 < lines.length && !ownerName) {
+        // Skip nav items — owner name lines are typically ALL CAPS with spaces
+        const candidate = lines[i + 1];
+        if (/^[A-Z][A-Z\s,\.]+$/.test(candidate) && candidate.length > 3) {
+          ownerName = candidate;
+        }
+      } else if (lines[i] === "Primary Address" && i + 1 < lines.length) {
+        propertyAddress = lines[i + 1];
+      } else if (lines[i] === "Billing Address" && i + 1 < lines.length) {
+        mailingAddress = lines[i + 1];
+        if (i + 2 < lines.length) {
+          const czLine = lines[i + 2];
+          const czMatch = czLine.match(/^(.+?)\s+WI\s+(\d{5})/);
+          if (czMatch) {
+            city = czMatch[1].trim();
+            zip = czMatch[2];
+          }
+        }
       }
     }
 
