@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import cron from "node-cron";
 import { db, upsertLead, getLeads, updateLeadStatus, updateLeadSkipTrace, getStats, logScrapeRun, finishScrapeRun, getSettings, saveSettings } from "./db.js";
 import { runAllScrapers, getDateRange } from "./scrapers/index.js";
+import { enrichLead } from "./scrapers/wi_enrichment.js";
 import { sendDailyReport } from "./email.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -66,7 +67,32 @@ async function runScrapeJob(fromDate: string, toDate: string): Promise<number> {
       console.log(`[Scrape] ${msg}`);
     });
 
+    // Enrich each lead with county assessor data before saving
     for (const lead of leads) {
+      try {
+        const county = (lead.county || "") as "Dane" | "Rock" | "Door";
+        if (["Dane", "Rock", "Door"].includes(county)) {
+          const enriched = await enrichLead({
+            county,
+            ownerName: (lead.owner_name as string) || undefined,
+            propertyAddress: (lead.address as string) || undefined,
+          });
+          if (enriched) {
+            if (!lead.owner_name && enriched.owner_name) lead.owner_name = enriched.owner_name;
+            if (!lead.address && enriched.property_address) lead.address = enriched.property_address;
+            if (!lead.city && enriched.city) lead.city = enriched.city;
+            if (!lead.zip && enriched.zip) lead.zip = enriched.zip;
+            if (!lead.mailing_address) {
+              lead.mailing_address = enriched.mailing_address;
+              lead.mailing_city = enriched.city;
+              lead.mailing_state = enriched.state;
+              lead.mailing_zip = enriched.zip;
+            }
+          }
+        }
+      } catch {
+        // enrichment failure is non-fatal
+      }
       const isNew = upsertLead(lead as unknown as Record<string, string | null>);
       if (isNew) totalNew++;
     }
