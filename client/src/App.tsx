@@ -22,27 +22,32 @@ export const CLIENT_CONFIG = {
     "name": "Dane",
     "state": "WI",
     "leadTypes": [
-      "Pre-Foreclosure",
-      "Tax Delinquent",
+      "Sheriff Sale",
+      "Bankruptcy",
       "Probate",
-      "Sheriff Sale"
+      "Tax Delinquent",
+      "Obituary",
+      "FSBO",
+      "Divorce"
     ]
   },
   {
     "name": "Rock",
     "state": "WI",
     "leadTypes": [
-      "Pre-Foreclosure",
-      "Tax Delinquent",
-      "Probate"
+      "Sheriff Sale",
+      "Bankruptcy",
+      "Probate",
+      "Divorce"
     ]
   },
   {
     "name": "Door",
     "state": "WI",
     "leadTypes": [
-      "Pre-Foreclosure",
-      "Tax Delinquent"
+      "Sheriff Sale",
+      "Bankruptcy",
+      "Probate"
     ]
   }
 ],
