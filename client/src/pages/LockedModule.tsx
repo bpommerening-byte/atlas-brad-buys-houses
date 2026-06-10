@@ -28,7 +28,7 @@ export default function LockedModule({ title, description, features, icon: Icon,
             boxShadow: `0 0 30px ${accentColor}15`,
           }}
         >
-          <Icon className="w-8 h-8" style={{ color: accentColor }} />
+          <Icon className="w-8 h-8" />
         </div>
 
         {/* Lock badge + title */}

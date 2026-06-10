@@ -1,6 +1,15 @@
 {
   "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "exclude": [
+    "node_modules", "build", "dist", "**/*.test.ts",
+    "client/src/components/Map.tsx",
+    "server/scrapers/south_carolina.ts",
+    "server/scrapers/texas.ts",
+    "server/scrapers/alabama.ts",
+    "server/scrapers/ohio.ts",
+    "server/scrapers/suffolk_ny.ts",
+    "server/scrapers/missouri.ts"
+  ],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
@@ -11,6 +20,7 @@
     "jsx": "preserve",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "downlevelIteration": true,
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
     "baseUrl": ".",

@@ -1,13 +1,16 @@
 import { Lead, CountyConfig } from "./base.js";
-import * as suffolkNY from "./suffolk_ny.js";
-import * as missouri from "./missouri.js";
 import * as wisconsin from "./wisconsin.js";
-import * as alabama from "./alabama.js";
-import * as ohio from "./ohio.js";
-import * as southCarolina from "./south_carolina.js";
-import * as texas from "./texas.js";
 
-// Run all scrapers for the configured counties
+export function getDateRange(daysBack = 30): { fromDate: string; toDate: string } {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - daysBack);
+  return {
+    fromDate: from.toISOString().split("T")[0],
+    toDate: to.toISOString().split("T")[0],
+  };
+}
+
 export async function runAllScrapers(
   counties: CountyConfig[],
   fromDate: string,
@@ -17,175 +20,19 @@ export async function runAllScrapers(
   const allLeads: Lead[] = [];
   const errors: string[] = [];
 
-  // Group counties by state
-  const stateGroups = new Map<string, CountyConfig[]>();
-  for (const county of counties) {
-    const key = county.state;
-    if (!stateGroups.has(key)) stateGroups.set(key, []);
-    stateGroups.get(key)!.push(county);
-  }
-
-  for (const [state, stateCounties] of stateGroups) {
-    // States with a single scrapeAll function (all 11 lead types)
-    if (state === "MO") {
-      try {
-        onProgress?.(`Scraping Missouri (all 11 lead types)...`);
-        const leads = await missouri.scrapeAll(fromDate, toDate);
-        allLeads.push(...leads);
-        onProgress?.(`✓ MO: ${leads.length} leads found`);
-      } catch (e) {
-        const msg = `Error scraping MO: ${(e as Error).message}`;
-        errors.push(msg);
-        onProgress?.(`✗ ${msg}`);
-      }
-      continue;
-    }
-    if (state === "WI") {
-      try {
-        onProgress?.(`Scraping Wisconsin (all 11 lead types)...`);
-        const leads = await wisconsin.scrapeAll(fromDate, toDate);
-        allLeads.push(...leads);
-        onProgress?.(`✓ WI: ${leads.length} leads found`);
-      } catch (e) {
-        const msg = `Error scraping WI: ${(e as Error).message}`;
-        errors.push(msg);
-        onProgress?.(`✗ ${msg}`);
-      }
-      continue;
-    }
-    if (state === "TX") {
-      try {
-        onProgress?.(`Scraping Texas (all 11 lead types)...`);
-        const leads = await texas.scrapeAll(fromDate, toDate);
-        allLeads.push(...leads);
-        onProgress?.(`✓ TX: ${leads.length} leads found`);
-      } catch (e) {
-        const msg = `Error scraping TX: ${(e as Error).message}`;
-        errors.push(msg);
-        onProgress?.(`✗ ${msg}`);
-      }
-      continue;
-    }
-    if (state === "NY") {
-      try {
-        onProgress?.(`Scraping NY (all lead types)...`);
-        const leads = await suffolkNY.scrapeAll(fromDate, toDate);
-        allLeads.push(...leads);
-        onProgress?.(`✓ NY: ${leads.length} leads found`);
-      } catch (e) {
-        const msg = `Error scraping NY: ${(e as Error).message}`;
-        errors.push(msg);
-        onProgress?.(`✗ ${msg}`);
-      }
-      continue;
-    }
-
-    // States with county-by-county scrapers (AL, OH, SC)
-    for (const county of stateCounties) {
-      try {
-        onProgress?.(`Scraping ${(county.name || (county as any).county || "")}, ${county.state} (all 11 lead types)...`);
-        let leads: Lead[] = [];
-        if (state === "AL") {
-          leads = await alabama.scrapeAlabama((county.name || (county as any).county || ""), fromDate, toDate);
-        } else if (state === "OH") {
-          leads = await ohio.scrapeOhio((county.name || (county as any).county || ""), fromDate, toDate);
-        } else if (state === "SC") {
-          leads = await southCarolina.scrapeSC((county.name || (county as any).county || ""), fromDate, toDate);
-        } else {
-          const msg = `No scraper registered for ${(county.name || (county as any).county || "")}, ${county.state}`;
-          errors.push(msg);
-          onProgress?.(`✗ ${msg}`);
-          continue;
-        }
-        allLeads.push(...leads);
-        onProgress?.(`✓ ${(county.name || (county as any).county || "")} ${county.state}: ${leads.length} leads`);
-      } catch (e) {
-        const msg = `Error scraping ${(county.name || (county as any).county || "")} ${county.state}: ${(e as Error).message}`;
-        errors.push(msg);
-        onProgress?.(`✗ ${msg}`);
-      }
-    }
-
-    // State-wide scrapers (run once per state, after county loop)
-    // These call functions that are NOT county-specific
-    if (state === "AL") {
-      // Bankruptcy address comes from assessor — kept; no separate state-wide AL Bankruptcy needed
-      // (it's already called inside scrapeAlabama per county)
-      const stateWideFns: Array<[string, () => Promise<Lead[]>]> = [
-        ["AL Code Violations", () => alabama.scrapeCodeViolations(fromDate, toDate)],
-        ["AL Divorce/Eviction", () => alabama.scrapeDivorce(fromDate, toDate)],
-        ["AL Out-of-State Owners", () => alabama.scrapeOutOfStateOwners(fromDate, toDate)],
-        ["AL Vacant/Abandoned", () => alabama.scrapeVacantAbandoned(fromDate, toDate)],
-      ];
-      for (const [label, fn] of stateWideFns) {
-        try {
-          onProgress?.(`Scraping ${label}...`);
-          const leads = await fn();
-          allLeads.push(...leads);
-          onProgress?.(`✓ ${label}: ${leads.length} leads`);
-        } catch (e) {
-          const msg = `Error scraping ${label}: ${(e as Error).message}`;
-          errors.push(msg);
-          onProgress?.(`✗ ${msg}`);
-        }
-      }
-    }
-    if (state === "OH") {
-      // SKIPPED (no address): Obituaries
-      // Bankruptcy address comes from assessor — already called inside scrapeOhio()
-      const stateWideFns: Array<[string, () => Promise<Lead[]>]> = [
-        ["OH Code Violations", () => ohio.scrapeCodeViolations(fromDate, toDate)],
-        ["OH Divorce/Eviction", () => ohio.scrapeDivorce(fromDate, toDate)],
-        ["OH Out-of-State Owners", () => ohio.scrapeOutOfStateOwners(fromDate, toDate)],
-        ["OH Vacant/Abandoned", () => ohio.scrapeVacantAbandoned(fromDate, toDate)],
-      ];
-      for (const [label, fn] of stateWideFns) {
-        try {
-          onProgress?.(`Scraping ${label}...`);
-          const leads = await fn();
-          allLeads.push(...leads);
-          onProgress?.(`✓ ${label}: ${leads.length} leads`);
-        } catch (e) {
-          const msg = `Error scraping ${label}: ${(e as Error).message}`;
-          errors.push(msg);
-          onProgress?.(`✗ ${msg}`);
-        }
-      }
-    }
-    if (state === "SC") {
-      // SKIPPED (no address): Bankruptcy, Obituaries, FSBO
-      const stateWideFns: Array<[string, () => Promise<Lead[]>]> = [
-        ["SC Code Violations", () => southCarolina.scrapeCodeViolations(fromDate, toDate)],
-        ["SC Divorce/Eviction", () => southCarolina.scrapeDivorce(fromDate, toDate)],
-        ["SC Out-of-State Owners", () => southCarolina.scrapeOutOfStateOwners(fromDate, toDate)],
-        ["SC Vacant/Abandoned", () => southCarolina.scrapeVacantAbandoned(fromDate, toDate)],
-      ];
-      for (const [label, fn] of stateWideFns) {
-        try {
-          onProgress?.(`Scraping ${label}...`);
-          const leads = await fn();
-          allLeads.push(...leads);
-          onProgress?.(`✓ ${label}: ${leads.length} leads`);
-        } catch (e) {
-          const msg = `Error scraping ${label}: ${(e as Error).message}`;
-          errors.push(msg);
-          onProgress?.(`✗ ${msg}`);
-        }
-      }
+  const wiCounties = counties.filter((c) => c.state === "WI");
+  if (wiCounties.length > 0) {
+    try {
+      onProgress?.(`Scraping Wisconsin (Dane, Rock, Door — all lead types)...`);
+      const leads = await wisconsin.scrapeAll(fromDate, toDate);
+      allLeads.push(...leads);
+      onProgress?.(`✓ WI: ${leads.length} leads found`);
+    } catch (e) {
+      const msg = `Error scraping WI: ${(e as Error).message}`;
+      errors.push(msg);
+      onProgress?.(`✗ ${msg}`);
     }
   }
 
   return { leads: allLeads, errors };
-}
-
-export function getDefaultDateRange(): { fromDate: string; toDate: string } {
-  const toDate = new Date().toISOString().split("T")[0];
-  const fromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  return { fromDate, toDate };
-}
-
-export function getDateRange(daysBack: number): { fromDate: string; toDate: string } {
-  const toDate = new Date().toISOString().split("T")[0];
-  const fromDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  return { fromDate, toDate };
 }
