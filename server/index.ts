@@ -282,6 +282,19 @@ async function startServer() {
     res.json({ ok: true, message: "Scrape started", from_date: fromDate, to_date: toDate });
   });
 
+  // POST /api/import — bulk insert leads from external scraper
+  app.post("/api/import", (req, res) => {
+    const leads = Array.isArray(req.body) ? req.body : (req.body?.leads || []);
+    if (!leads.length) return res.json({ inserted: 0, skipped: 0 });
+    let inserted = 0, skipped = 0;
+    for (const lead of leads) {
+      if (!lead.id) { skipped++; continue; }
+      const isNew = upsertLead(lead as unknown as Record<string, string | null>);
+      if (isNew) inserted++; else skipped++;
+    }
+    res.json({ inserted, skipped, total: leads.length });
+  });
+
   // GET /api/scrape/status — check if scrape is running
   app.get("/api/scrape/status", (_req, res) => {
     res.json({ in_progress: scrapeInProgress, log: lastScrapeLog });
