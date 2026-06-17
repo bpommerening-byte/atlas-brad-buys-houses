@@ -282,7 +282,7 @@ async function startServer() {
     res.json({ ok: true, message: "Scrape started", from_date: fromDate, to_date: toDate });
   });
 
-  // POST /api/import — bulk insert leads from external scraper
+  // POST /api/import — bulk insert leads from external scraper (v2)
   app.post("/api/import", (req, res) => {
     const leads = Array.isArray(req.body) ? req.body : (req.body?.leads || []);
     if (!leads.length) return res.json({ inserted: 0, skipped: 0 });
